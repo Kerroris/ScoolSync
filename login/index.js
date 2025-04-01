@@ -1,10 +1,10 @@
-const MongoClient = require('mongodb').MongoClient;
+const { MongoClient } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const cors = require('cors');
 
-const JWT_SECRET = '';
-const MONGODB_URI = '';
+const JWT_SECRET = 'zuputamadrememetiounsustodeembarazo2025';
+const MONGODB_URI = 'mongodb+srv://kevinCisco:Asustoembarazo123@cluster0.6ngdm.mongodb.net/calendarioroger?retryWrites=true&w=majority&appName=Cluster0';
 
 // Configuración CORS
 const corsMiddleware = cors({
@@ -21,37 +21,34 @@ exports.login = async (req, res) => {
 
   corsMiddleware(req, res, async () => {
     try {
-      const { email, password } = req.body;
+      const { username, password } = req.body;
 
-      if (!email || !password) {
+      if (!username || !password) {
         return res.status(400).json({
           success: false,
-          message: 'Correo y contraseña son obligatorios'
+          message: 'Username y contraseña son obligatorios'
         });
       }
 
-      const client = await MongoClient.connect(MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-      });
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
 
-      const db = client.db('HCY_CONTACTOS');
+      const db = client.db('calendarioroger');
       const usersCollection = db.collection('users');
 
-      const user = await usersCollection.findOne({ email });
+      // Buscar usuario por username
+      const user = await usersCollection.findOne({ username });
 
       if (!user) {
         await client.close();
         return res.status(401).json({
           success: false,
-          message: 'Email incorrecto'
+          message: 'Username incorrecto'
         });
       }
 
       // Hash de la contraseña ingresada
-      const hash = crypto.createHash('sha256');
-      hash.update(password);
-      const hashedPassword = hash.digest('hex');
+      const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
 
       // Verificar contraseña
       if (hashedPassword !== user.password) {
@@ -65,11 +62,10 @@ exports.login = async (req, res) => {
       // Crear objeto usuario sin contraseña
       const userResponse = {
         _id: user._id,
-        nombre: user.nombre,
-        apellido_p: user.apellido_p,
-        apellido_m: user.apellido_m,
+        username: user.username,
         email: user.email,
-        telefon: user.telefon
+        fullName: user.fullName,
+        birthDate: user.birthDate
       };
       
       const token = jwt.sign(userResponse, JWT_SECRET, { expiresIn: '365d' });
