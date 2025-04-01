@@ -1,12 +1,12 @@
-const MongoClient = require('mongodb').MongoClient;
+const { MongoClient } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const cors = require('cors');
 const moment = require('moment');
 moment.locale('es');
 
-const JWT_SECRET = '';
-const MONGODB_URI = '';
+const JWT_SECRET = 'zuputamadrememetiounsustodeembarazo2025';
+const MONGODB_URI = 'mongodb+srv://kevinCisco:Asustoembarazo123@cluster0.6ngdm.mongodb.net/calendarioroger?retryWrites=true&w=majority&appName=Cluster0';
 
 // Configuración CORS
 const corsMiddleware = cors({
@@ -23,36 +23,26 @@ exports.register = async (req, res) => {
 
   corsMiddleware(req, res, async () => {
     try {
-      const { nombre, apellido_p, apellido_m, email, telefon, pass, confirm_pass } = req.body;
+      const { username, email, password, fullName, birthDate } = req.body;
 
-      if (!nombre || !apellido_p || !apellido_m || !email || !telefon || !pass || !confirm_pass) {
+      if (!username || !email || !password || !fullName || !birthDate) {
         return res.status(400).json({
           success: false,
           message: 'Todos los campos son obligatorios'
         });
       }
 
-      // Verificar que las contraseñas coincidan
-      if (pass !== confirm_pass) {
-        return res.status(400).json({
-          success: false,
-          message: 'Las contraseñas no coinciden'
-        });
-      }
-
       // Conexión a MongoDB Atlas
-      const client = await MongoClient.connect(MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-      });
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
 
-      const db = client.db('HCY_CONTACTOS');
+      const db = client.db('calendarioroger');
       const usersCollection = db.collection('users');
 
-      const existingEmail = await usersCollection.findOne({ email });
-      const existingPhone = await usersCollection.findOne({ telefon });
+      // Verificar si el email ya está registrado
+      const existingUser = await usersCollection.findOne({ email });
 
-      if (existingEmail) {
+      if (existingUser) {
         await client.close();
         return res.status(409).json({
           success: false,
@@ -60,43 +50,34 @@ exports.register = async (req, res) => {
         });
       }
 
-      if (existingPhone) {
-        await client.close();
-        return res.status(409).json({
-          success: false,
-          message: 'El número de teléfono ya está registrado'
-        });
-      }
-
-      const hash = crypto.createHash('sha256');
-      hash.update(pass);
-      const hashedPassword = hash.digest('hex');
+      // Hash de la contraseña
+      const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
       const fechaUTC = moment().utcOffset('-06:00').toDate();
 
+      // Crear nuevo usuario
       const newUser = {
-        nombre,
-        apellido_p,
-        apellido_m,
+        username,
         email,
-        telefon,
-        password: hashedPassword, 
+        password: hashedPassword,
+        fullName,
+        birthDate,
         fecha_registro: fechaUTC,
         fecha_actualizacion: fechaUTC
       };
 
-      // Insertar nuevo usuario en la base de datos
+      // Insertar en la base de datos
       const result = await usersCollection.insertOne(newUser);
       const userId = result.insertedId;
 
       const userResponse = {
-        _id: userId,
-        nombre,
-        apellido_p,
-        apellido_m,
+        _id: userId, // ✅ Agregado correctamente
+        username,
         email,
-        telefon
+        fullName,
+        birthDate
       };
 
+      // Generar token JWT
       const token = jwt.sign(userResponse, JWT_SECRET, { expiresIn: '365d' });
 
       await client.close();
